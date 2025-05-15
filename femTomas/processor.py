@@ -107,7 +107,7 @@ class Processor:
             self._next_instr_uid += 1
             
             try:
-                instr = Instruction(raw_instruction=line, address=current_instr_addr, uid=instr_uid, label_map=label_map)
+                instr = Instruction(raw_instruction=line, address=current_instr_addr, uid=instr_uid)
                 self.instruction_queue.append(instr)
                 self.loaded_instructions_map[current_instr_addr] = instr
                 self.timing_log[instr.uid] = {'RAW': str(instr), 'I': None, 'ES': None, 'EE': None, 'WB': None}
@@ -429,7 +429,14 @@ if __name__ == '__main__':
         print("2. Load from file")
         choice = input("Enter your choice (1/2): ")
         if choice == "1":
-            program = input("Enter your program (assembly instructions, one per line):\n")
+            print("Enter your program (assembly instructions, one per line). Type 'END' on a new line to finish:")
+            lines = []
+            while True:
+                line = input()
+                if line.strip().upper() == 'END':
+                    break
+                lines.append(line)
+            program = '\n'.join(lines)
         elif choice == "2":
             filename = input("Enter the filename of your program: ")
             with open(filename, 'r') as f:
