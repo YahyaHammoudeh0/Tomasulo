@@ -29,12 +29,50 @@ if 'processor' not in st.session_state:
 
 # --- Sidebar: Hardware Config ---
 st.sidebar.header("Hardware Configuration")
-fu_config = {}
+# Reset to Defaults button
+if st.sidebar.button("Reset to Defaults"):
+    defaults = get_default_fu_config()
+    for fu, vals in defaults.items():
+        st.session_state[f"rs_{fu}"] = vals['rs_count']
+        st.session_state[f"lat_{fu}"] = vals['latency']
+    st.session_state.pipeline_width = 1
+    st.session_state.fu_config = get_default_fu_config()
+
+# Only use session_state for widget defaults. Do not mutate session_state here.
+local_fu_config = {}
 for fu, vals in get_default_fu_config().items():
-    rs = st.sidebar.number_input(f"{fu} RS Count", min_value=1, value=vals['rs_count'], key=f"rs_{fu}")
-    lat = st.sidebar.number_input(f"{fu} Latency", min_value=1, value=vals['latency'], key=f"lat_{fu}")
-    fu_config[fu] = {"rs_count": rs, "latency": lat}
-pipeline_width = st.sidebar.number_input("Pipeline Width", min_value=1, value=1, key="pipeline_width")
+    rs = st.sidebar.number_input(
+        f"{fu} RS Count",
+        min_value=1,
+        value=st.session_state.fu_config[fu]['rs_count'],
+        key=f"rs_{fu}"
+    )
+    lat = st.sidebar.number_input(
+        f"{fu} Latency",
+        min_value=1,
+        value=st.session_state.fu_config[fu]['latency'],
+        key=f"lat_{fu}"
+    )
+    local_fu_config[fu] = {"rs_count": rs, "latency": lat}
+local_pipeline_width = st.sidebar.number_input(
+    "Pipeline Width",
+    min_value=1,
+    value=st.session_state.pipeline_width,
+    key="pipeline_width"
+)
+
+# Confirm Hardware Config button
+if st.sidebar.button("Confirm Hardware Config"):
+    st.session_state.fu_config = local_fu_config.copy()
+
+# --- Show Current Hardware Config ---
+st.subheader("Current Hardware Configuration")
+import pandas as pd
+config_table = []
+for fu, vals in st.session_state.fu_config.items():
+    config_table.append({"FU Type": fu, "# Reservation Stations": vals['rs_count'], "Latency": vals['latency']})
+config_table.append({"FU Type": "Pipeline Width", "# Reservation Stations": st.session_state.pipeline_width, "Latency": "-"})
+st.dataframe(pd.DataFrame(config_table))
 
 # --- Program Input ---
 st.header("1. Load Assembly Program")
@@ -49,7 +87,13 @@ else:
 st.header("2. Simulation Controls")
 col1, col2, col3, col4 = st.columns(4)
 if col1.button("Initialize/Reset"):
-    st.session_state.processor = Processor(fu_config=fu_config, pipeline_width=pipeline_width)
+    # Update session_state with the current sidebar config only on reset
+    st.session_state.fu_config = local_fu_config
+    # DO NOT set st.session_state.pipeline_width here; let the widget manage it
+    st.session_state.processor = Processor(
+        fu_config=st.session_state.fu_config,
+        pipeline_width=st.session_state.pipeline_width
+    )
     st.session_state.processor.load_program(program, initial_pc=0)
     st.session_state.cycle = 0
     st.session_state.sim_started = True

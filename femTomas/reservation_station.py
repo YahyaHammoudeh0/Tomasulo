@@ -1,11 +1,11 @@
 from typing import Optional, Any # Using Any for Instruction for now to avoid circular dependency
-from .instruction import OpType # Assuming this can be imported directly now
+from .instruction import OpType
 from .config import FU_CONFIG
 
 class ReservationStation:
     """Represents a single entry in a reservation station pool for a functional unit type."""
 
-    def __init__(self, name: str, fu_type: str):
+    def __init__(self, name: str, fu_type: str, latency: int):
         """
         Initializes a reservation station entry.
 
@@ -13,12 +13,11 @@ class ReservationStation:
             name: Unique name/tag for this RS (e.g., "Load1", "AddSub3").
             fu_type: The type of Functional Unit this RS is associated with
                      (e.g., "LOAD", "ADD_SUB", "MUL"). Used to get latency.
+            latency: The latency for this RS, from the processor's config.
         """
         self.name: str = name
         self.fu_type: str = fu_type
-        if fu_type not in FU_CONFIG:
-            raise ValueError(f"Unknown FU type '{fu_type}' for Reservation Station '{name}'.")
-        self.latency: int = FU_CONFIG[fu_type]['latency']
+        self.latency: int = latency
 
         # State fields, reset by clear()
         self.busy: bool = False

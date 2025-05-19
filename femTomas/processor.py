@@ -41,7 +41,7 @@ class Processor:
             self.reservation_stations[fu_type] = []
             for i in range(config['rs_count']):
                 rs_name = f"{fu_type}{i+1}"
-                self.reservation_stations[fu_type].append(ReservationStation(name=rs_name, fu_type=fu_type))
+                self.reservation_stations[fu_type].append(ReservationStation(name=rs_name, fu_type=fu_type, latency=config['latency']))
 
     def load_program(
         self, 
@@ -188,34 +188,29 @@ class Processor:
 
     def _execute_stage(self):
         """Handles the instruction execution stage."""
-        # This stage is complex: dispatching ready RSs to FUs, and FU execution cycles.
-        # For simplicity, we'll assume FUs can start new operations if an RS is ready
-        # and the FU itself is not busy with a multi-cycle operation from a *previous* cycle.
-        # The ReservationStation's execute_cycle handles its internal timing.
-
+        # For each busy RS, advance execution if it has started
         for fu_type, rs_list in self.reservation_stations.items():
             for rs in rs_list:
                 if rs.busy and not rs.result_ready_for_cdb:
-                    # If RS is ready to dispatch and its FU is conceptually 'free'
-                    # (for now, we assume an RS with remaining_execution_cycles > 0 is 'using' the FU)
+                    # Start execution if ready and not started yet
                     if rs.is_ready_to_dispatch() and self.timing_log[rs.instruction.uid]['ES'] is None:
-                        self.timing_log[rs.instruction.uid]['ES'] = self.current_cycle # Execution Start
+                        self.timing_log[rs.instruction.uid]['ES'] = self.current_cycle  # Execution Start
                         rs.instruction.execute_start_cycle = self.current_cycle
                         print(f"Cycle {self.current_cycle}: {rs.name} ({rs.instruction}) started execution.")
 
-                    # If instruction has started execution, advance its execution cycle
+                    # If execution has started, advance execution every cycle
                     if self.timing_log[rs.instruction.uid]['ES'] is not None:
-                        # Perform actual computation if it's the last cycle of execution
-                        if rs.remaining_execution_cycles == 1: # About to finish
+                        # Only compute result on the last execution cycle
+                        if rs.remaining_execution_cycles == 1:
                             computed_result = self._compute_result(rs)
-                            rs.instruction.result_value = computed_result # Store for broadcast
-                        
-                        rs.execute_cycle() # Decrements remaining_execution_cycles
-
-                        if rs.result_ready_for_cdb:
-                            self.timing_log[rs.instruction.uid]['EE'] = self.current_cycle # Execution End
+                            rs.instruction.result_value = computed_result
+                        rs.execute_cycle()  # Always decrement cycles if executing
+                        # If just finished, mark EE
+                        if rs.result_ready_for_cdb and self.timing_log[rs.instruction.uid]['EE'] is None:
+                            self.timing_log[rs.instruction.uid]['EE'] = self.current_cycle  # Execution End
                             rs.instruction.execute_end_cycle = self.current_cycle
                             print(f"Cycle {self.current_cycle}: {rs.name} ({rs.instruction}) finished execution. Result: {rs.instruction.result_value}")
+
     
     def _compute_result(self, rs: ReservationStation) -> int:
         """Computes the actual result for an instruction in an RS. Handles memory for L/S."""
